@@ -1,15 +1,36 @@
-FROM alpine:3.20
+worker_processes auto;
+error_log /dev/stderr warn;
+pid /tmp/nginx.pid;
 
-RUN apk add --no-cache curl unzip ca-certificates
+events {
+    worker_connections 4096;
+}
 
-RUN curl -L https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip \
-    -o /tmp/xray.zip \
-    && unzip /tmp/xray.zip xray -d /usr/local/bin/ \
-    && chmod +x /usr/local/bin/xray \
-    && rm /tmp/xray.zip
+http {
+    access_log off;
+    client_max_body_size 0;
 
-COPY config.json /etc/xray/config.json
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
 
-EXPOSE 8080
+    server {
+        listen 8080;
 
-CMD ["xray", "run", "-config", "/etc/xray/config.json"]
+        location / {
+            proxy_pass http://185.12.126.154:80;
+            proxy_http_version 1.1;
+
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection $connection_upgrade;
+            proxy_set_header Host $host;
+
+            proxy_buffering off;
+            proxy_request_buffering off;
+            proxy_connect_timeout 10s;
+            proxy_read_timeout 3600s;
+            proxy_send_timeout 3600s;
+        }
+    }
+}
